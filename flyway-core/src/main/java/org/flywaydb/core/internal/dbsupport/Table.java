@@ -79,14 +79,20 @@ public abstract class Table extends SchemaObject {
         }
 
         ResultSet resultSet = null;
-        boolean found;
+        boolean found = false;
         try {
+            LOG.info("In Table exists for catalog: " + catalog + " schema: " + schema.getName() + " table: " + table + " types: " + types);
             resultSet = jdbcTemplate.getMetaData().getTables(
                     catalog == null ? null : catalog.getName(),
                     schema == null ? null : schema.getName(),
                     table,
                     types);
             found = resultSet.next();
+            LOG.info("Got: " + found);
+            LOG.info(resultSet.getString(1) + " " + resultSet.getString(2) + " " + resultSet.getString(3));
+        }
+        catch (SQLException e) {
+            LOG.info(e.getMessage());
         } finally {
             JdbcUtils.closeResultSet(resultSet);
         }

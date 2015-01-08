@@ -23,6 +23,7 @@ import org.flywaydb.core.internal.dbsupport.h2.H2DbSupport;
 import org.flywaydb.core.internal.dbsupport.hsql.HsqlDbSupport;
 import org.flywaydb.core.internal.dbsupport.mysql.MySQLDbSupport;
 import org.flywaydb.core.internal.dbsupport.oracle.OracleDbSupport;
+import org.flywaydb.core.internal.dbsupport.phoenix.PhoenixDbSupport;
 import org.flywaydb.core.internal.dbsupport.postgresql.PostgreSQLDbSupport;
 import org.flywaydb.core.internal.dbsupport.redshift.RedshiftDbSupport;
 import org.flywaydb.core.internal.dbsupport.sqlite.SQLiteDbSupport;
@@ -108,6 +109,9 @@ public class DbSupportFactory {
         }
         if (databaseProductName.startsWith("Vertica")) {
             return new VerticaDbSupport(connection);
+        }
+        if (databaseProductName.startsWith("Phoenix 4")) {
+            return new PhoenixDbSupport(connection);
         }
 
         throw new FlywayException("Unsupported Database: " + databaseProductName);

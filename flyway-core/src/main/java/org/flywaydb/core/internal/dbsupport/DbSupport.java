@@ -144,12 +144,19 @@ public abstract class DbSupport {
         String result = "";
 
         boolean first = true;
+        boolean lastNull = false;
         for (String identifier : identifiers) {
-            if (!first) {
+            if (!first && !lastNull) {
                 result += ".";
             }
             first = false;
-            result += doQuote(identifier);
+            if(identifier == null) {
+                lastNull = true;
+            }
+            else {
+                result += doQuote(identifier);
+                lastNull = false;
+            }
         }
 
         return result;

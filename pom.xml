@@ -102,6 +102,7 @@
         <version.mariadb>1.1.7</version.mariadb>
         <version.postgresql>9.3-1102-jdbc4</version.postgresql>
         <version.sqlite>3.7.15-M1</version.sqlite>
+        <version.phoenix>4.2.2</version.phoenix>
         <version.equinox>3.6.0.v20100517</version.equinox>
         <version.equinoxcommon>3.6.0.v20100503</version.equinoxcommon>
         <version.android>4.0.1.2</version.android>
@@ -253,6 +254,14 @@
                 <version>7.0.0-0</version>
                 <optional>true</optional>
             </dependency>
+            <!--
+            <dependency>
+                <groupId>org.apache.phoenix</groupId>
+                <artifactId>phoenix-core</artifactId>
+                <version>${version.phoenix}</version>
+                <optional>true</optional>
+            </dependency>
+            -->
             <dependency>
                 <groupId>com.google.appengine</groupId>
                 <artifactId>appengine-api-1.0-sdk</artifactId>

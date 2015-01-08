@@ -18,11 +18,7 @@ package org.flywaydb.core.internal.metadatatable;
 import org.flywaydb.core.api.FlywayException;
 import org.flywaydb.core.api.MigrationType;
 import org.flywaydb.core.api.MigrationVersion;
-import org.flywaydb.core.internal.dbsupport.DbSupport;
-import org.flywaydb.core.internal.dbsupport.JdbcTemplate;
-import org.flywaydb.core.internal.dbsupport.Schema;
-import org.flywaydb.core.internal.dbsupport.SqlScript;
-import org.flywaydb.core.internal.dbsupport.Table;
+import org.flywaydb.core.internal.dbsupport.*;
 import org.flywaydb.core.internal.util.PlaceholderReplacer;
 import org.flywaydb.core.internal.util.StringUtils;
 import org.flywaydb.core.internal.util.jdbc.RowMapper;
@@ -32,11 +28,7 @@ import org.flywaydb.core.internal.util.scanner.classpath.ClassPathResource;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Supports reading and writing to the metadata table.
@@ -109,32 +101,80 @@ public class MetaDataTableImpl implements MetaDataTable {
         try {
             int versionRank = calculateVersionRank(version);
 
-            jdbcTemplate.update("UPDATE " + table
-                    + " SET " + dbSupport.quote("version_rank") + " = " + dbSupport.quote("version_rank")
-                    + " + 1 WHERE " + dbSupport.quote("version_rank") + " >= ?", versionRank);
-            jdbcTemplate.update("INSERT INTO " + table
-                            + " (" + dbSupport.quote("version_rank")
-                            + "," + dbSupport.quote("installed_rank")
-                            + "," + dbSupport.quote("version")
-                            + "," + dbSupport.quote("description")
-                            + "," + dbSupport.quote("type")
-                            + "," + dbSupport.quote("script")
-                            + "," + dbSupport.quote("checksum")
-                            + "," + dbSupport.quote("installed_by")
-                            + "," + dbSupport.quote("execution_time")
-                            + "," + dbSupport.quote("success")
-                            + ")"
-                            + " VALUES (?, ?, ?, ?, ?, ?, ?, " + dbSupport.getCurrentUserFunction() + ", ?, ?)",
-                    versionRank,
-                    calculateInstalledRank(),
-                    version.toString(),
-                    appliedMigration.getDescription(),
-                    appliedMigration.getType().name(),
-                    appliedMigration.getScript(),
-                    appliedMigration.getChecksum(),
-                    appliedMigration.getExecutionTime(),
-                    appliedMigration.isSuccess()
-            );
+            // Try load an updateMetaDataTable.sql file if it exists
+            try {
+                String resourceName = "org/flywaydb/core/internal/dbsupport/" + dbSupport.getDbName() + "/updateMetaDataTable.sql";
+                String source = new ClassPathResource(resourceName, getClass().getClassLoader()).loadAsString("UTF-8");
+                Map<String, String> placeholders = new HashMap<String, String>();
+
+                // Placeholders for column names
+                placeholders.put("schema", table.getSchema().getName());
+                placeholders.put("table", table.getName());
+                placeholders.put("version_rank", dbSupport.quote("version_rank"));
+                placeholders.put("installed_rank", dbSupport.quote("installed_rank"));
+                placeholders.put("version", dbSupport.quote("version"));
+                placeholders.put("description", dbSupport.quote("description"));
+                placeholders.put("type", dbSupport.quote("type"));
+                placeholders.put("script", dbSupport.quote("script"));
+                placeholders.put("checksum", dbSupport.quote("checksum"));
+                placeholders.put("installed_by", dbSupport.quote("installed_by"));
+                placeholders.put("installed_on", dbSupport.quote("installed_by"));
+                placeholders.put("execution_time", dbSupport.quote("execution_time"));
+                placeholders.put("success", dbSupport.quote("success"));
+
+                // Placeholders for column values
+                placeholders.put("version_rank_val", String.valueOf(versionRank));
+                placeholders.put("installed_rank_val", String.valueOf(calculateInstalledRank()));
+                placeholders.put("version_val", version.toString());
+                placeholders.put("description_val", appliedMigration.getDescription());
+                placeholders.put("type_val", appliedMigration.getType().name());
+                placeholders.put("script_val", appliedMigration.getScript());
+                placeholders.put("checksum_val", String.valueOf(appliedMigration.getChecksum()));
+                placeholders.put("installed_by_val", dbSupport.getCurrentUserFunction());
+                placeholders.put("execution_time_val", String.valueOf(appliedMigration.getExecutionTime() * 1000L));
+                placeholders.put("success_val", String.valueOf(appliedMigration.isSuccess()));
+
+                String sourceNoPlaceholders = new PlaceholderReplacer(placeholders, "${", "}").replacePlaceholders(source);
+
+                SqlScript sqlScript = new SqlScript(sourceNoPlaceholders, dbSupport);
+
+                for(SqlStatement stmt : sqlScript.getSqlStatements()) {
+                    LOG.info(stmt.getSql());
+                }
+                sqlScript.execute(jdbcTemplate);
+
+            }
+            // Fall back to hard-coded statements
+            catch (FlywayException e) {
+                LOG.info(e.getMessage());
+                jdbcTemplate.update("UPDATE " + table
+                        + " SET " + dbSupport.quote("version_rank") + " = " + dbSupport.quote("version_rank")
+                        + " + 1 WHERE " + dbSupport.quote("version_rank") + " >= ?", versionRank);
+                jdbcTemplate.update("INSERT INTO " + table
+                                + " (" + dbSupport.quote("version_rank")
+                                + "," + dbSupport.quote("installed_rank")
+                                + "," + dbSupport.quote("version")
+                                + "," + dbSupport.quote("description")
+                                + "," + dbSupport.quote("type")
+                                + "," + dbSupport.quote("script")
+                                + "," + dbSupport.quote("checksum")
+                                + "," + dbSupport.quote("installed_by")
+                                + "," + dbSupport.quote("execution_time")
+                                + "," + dbSupport.quote("success")
+                                + ")"
+                                + " VALUES (?, ?, ?, ?, ?, ?, ?, " + dbSupport.getCurrentUserFunction() + ", ?, ?)",
+                        versionRank,
+                        calculateInstalledRank(),
+                        version.toString(),
+                        appliedMigration.getDescription(),
+                        appliedMigration.getType().name(),
+                        appliedMigration.getScript(),
+                        appliedMigration.getChecksum(),
+                        appliedMigration.getExecutionTime(),
+                        appliedMigration.isSuccess()
+                );
+            }
+
             LOG.debug("MetaData table " + table + " successfully updated to reflect changes");
         } catch (SQLException e) {
             throw new FlywayException("Unable to insert row for version '" + version + "' in metadata table " + table, e);
