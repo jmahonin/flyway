@@ -18,10 +18,13 @@ package org.flywaydb.core.internal.dbsupport.phoenix;
 import org.flywaydb.core.internal.dbsupport.JdbcTemplate;
 import org.flywaydb.core.internal.dbsupport.Schema;
 import org.flywaydb.core.internal.dbsupport.Table;
+import org.flywaydb.core.internal.util.Pair;
 import org.flywaydb.core.internal.util.StringUtils;
+import org.flywaydb.core.internal.util.jdbc.RowMapper;
 import org.flywaydb.core.internal.util.logging.Log;
 import org.flywaydb.core.internal.util.logging.LogFactory;
 
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
@@ -60,33 +63,52 @@ public class PhoenixSchema extends Schema<PhoenixDbSupport> {
 
     @Override
     protected void doCreate() throws SQLException {
-        LOG.info("Phoenix does not support creating schemas. Schema not dropped: " + name);
+        LOG.info("Phoenix does not support creating schemas. Schema not created: " + name);
     }
 
     @Override
     protected void doDrop() throws SQLException {
-        LOG.info("Phoenix does not support dropping schemas. Schema not dropped: " + name);
+        LOG.info("Phoenix does not support dropping schemas directly. Running clean of objects instead");
+        doClean();
     }
 
     @Override
     protected void doClean() throws SQLException {
-        for (Table table : allTables()) {
-            table.drop();
-        }
-
+        // Clean sequences
         List<String> sequenceNames = listObjectsOfType("sequence");
         for (String statement : generateDropStatements("SEQUENCE", sequenceNames, "")) {
+            LOG.info(statement);
             jdbcTemplate.execute(statement);
         }
 
-        List<String> indexNames = listObjectsOfType("index");
-        for (String statement : generateDropStatements("INDEX", indexNames, "")) {
-            jdbcTemplate.execute(statement);
-        }
-
+        // Clean views
         List<String> viewNames = listObjectsOfType("view");
-        for (String statement : generateDropStatements("INDEX", viewNames, "")) {
+        for (String statement : generateDropStatements("VIEW", viewNames, "")) {
+            LOG.info(statement);
             jdbcTemplate.execute(statement);
+        }
+
+        // Clean indices - bit more complicated, they hae a name and a table
+        // These come back as a list of "index_name,table_name"
+
+        List<String> indexPairs = listObjectsOfType("index");
+        List<String> indexNames = new ArrayList<String>();
+        List<String> indexTables = new ArrayList<String>();
+        for(String indexPair : indexPairs) {
+            String[] splits = indexPair.split(",");
+            indexNames.add(splits[0]);
+            indexTables.add("ON " + dbSupport.quote(name, splits[1]));
+        }
+
+        // Generate statements for each index
+        List<String> statements = generateDropStatements("INDEX", indexNames, indexTables);
+        for(String statement: statements) {
+            LOG.info(statement);
+            jdbcTemplate.execute(statement);
+        }
+
+        for (Table table : allTables()) {
+            table.drop();
         }
     }
 
@@ -103,6 +125,17 @@ public class PhoenixSchema extends Schema<PhoenixDbSupport> {
         for (String objectName : objectNames) {
             String dropStatement =
                     "DROP " + objectType + dbSupport.quote(name, objectName) + " " + dropStatementSuffix;
+
+            statements.add(dropStatement);
+        }
+        return statements;
+    }
+
+    private List<String> generateDropStatements(String objectType, List<String> objectNames, List<String> dropStatementSuffixes) {
+        List<String> statements = new ArrayList<String>();
+        for (int i = 0; i < objectNames.size(); i++) {
+            String dropStatement =
+                    "DROP " + objectType + " " + dbSupport.quote(name, objectNames.get(i)) + " " + dropStatementSuffixes.get(i);
 
             statements.add(dropStatement);
         }
@@ -128,8 +161,6 @@ public class PhoenixSchema extends Schema<PhoenixDbSupport> {
      */
 
     protected List<String> listObjectsOfType(String type) throws SQLException {
-        String tableType = "";
-
         if (type.equalsIgnoreCase("sequence")) {
             if(name == null) {
                 String query = "SELECT SEQUENCE_NAME FROM SYSTEM.\"SEQUENCE\" WHERE SEQUENCE_SCHEMA IS NULL";
@@ -141,27 +172,49 @@ public class PhoenixSchema extends Schema<PhoenixDbSupport> {
             }
         }
 
+        String queryStart = "SELECT TABLE_NAME FROM SYSTEM.CATALOG WHERE TABLE_SCHEM";
+        String queryMid = "";
+        String queryEnd = "";
+
+        if(name == null) {
+            queryMid += " IS NULL";
+        }
+        else {
+            queryMid += " = ?";
+        }
+
+        String tableType = "";
         if (type.equalsIgnoreCase("table")) {
             tableType = "u";
-        }
-        else if (type.equalsIgnoreCase("index")) {
-            tableType = "i";
         }
         else if (type.equalsIgnoreCase("view")) {
             tableType = "v";
         }
+        else if (type.equalsIgnoreCase("index")) {
+            tableType = "i";
+            // Indices have two components, index name and table name
+            queryStart = "SELECT TABLE_NAME, DATA_TABLE_NAME FROM SYSTEM.CATALOG WHERE TABLE_SCHEM";
+            queryEnd = " AND TABLE_TYPE = '" + tableType + "'";
+            String query = queryStart + queryMid + queryEnd;
 
-        String queryStart = "SELECT TABLE_NAME FROM SYSTEM.CATALOG WHERE TABLE_SCHEM";
-        String queryEnd = " AND TABLE_TYPE = '" + tableType + "'";
-        String queryMid = "";
+            // Return the index and table as a comma separated string
+            return jdbcTemplate.query(query, new RowMapper<String> () {
+                @Override
+                public String mapRow(ResultSet rs) throws SQLException {
+                    // Return the pair of
+                    return rs.getString("TABLE_NAME") + "," + rs.getString("DATA_TABLE_NAME");
+                }
+            });
+        }
+
+        queryEnd = " AND TABLE_TYPE = '" + tableType + "'";
+        String query = queryStart + queryMid + queryEnd;
 
         if(name == null) {
-            queryMid += " IS NULL";
-            return jdbcTemplate.queryForStringList(queryStart + queryMid + queryEnd);
+            return jdbcTemplate.queryForStringList(query);
         }
         else {
-            queryMid += " = ?";
-            return jdbcTemplate.queryForStringList(queryStart + queryMid + queryEnd, name);
+            return jdbcTemplate.queryForStringList(query, name);
         }
     }
 
