@@ -101,7 +101,7 @@ public class PhoenixSchema extends Schema<PhoenixDbSupport> {
         }
 
         // Generate statements for each index
-        List<String> statements = generateDropStatements("INDEX", indexNames, indexTables);
+        List<String> statements = generateDropIndexStatements(indexNames, indexTables);
         for(String statement: statements) {
             LOG.info(statement);
             jdbcTemplate.execute(statement);
@@ -131,11 +131,11 @@ public class PhoenixSchema extends Schema<PhoenixDbSupport> {
         return statements;
     }
 
-    private List<String> generateDropStatements(String objectType, List<String> objectNames, List<String> dropStatementSuffixes) {
+    private List<String> generateDropIndexStatements(List<String> objectNames, List<String> dropStatementSuffixes) {
         List<String> statements = new ArrayList<String>();
         for (int i = 0; i < objectNames.size(); i++) {
             String dropStatement =
-                    "DROP " + objectType + " " + dbSupport.quote(name, objectNames.get(i)) + " " + dropStatementSuffixes.get(i);
+                    "DROP INDEX " + dbSupport.quote(objectNames.get(i)) + " " + dropStatementSuffixes.get(i);
 
             statements.add(dropStatement);
         }
@@ -195,8 +195,13 @@ public class PhoenixSchema extends Schema<PhoenixDbSupport> {
             // Indices have two components, index name and table name
             queryStart = "SELECT TABLE_NAME, DATA_TABLE_NAME FROM SYSTEM.CATALOG WHERE TABLE_SCHEM";
             queryEnd = " AND TABLE_TYPE = '" + tableType + "'";
-            String query = queryStart + queryMid + queryEnd;
 
+            // Construct the query
+            // jdbcTemplate.query doesn't take parameters, populate the schema name ourselves if needed
+
+            String query = queryStart + queryMid.replaceFirst("\\?", "'" + name + "'") + queryEnd;
+
+            LOG.info(query);
             // Return the index and table as a comma separated string
             return jdbcTemplate.query(query, new RowMapper<String> () {
                 @Override

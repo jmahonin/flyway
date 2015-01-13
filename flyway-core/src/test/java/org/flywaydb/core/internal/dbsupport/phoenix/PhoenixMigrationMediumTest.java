@@ -44,7 +44,9 @@ import static org.junit.Assert.*;
 @Category(DbCategory.Phoenix.class)
 public class PhoenixMigrationMediumTest extends MigrationTestCase {
     private static final Log LOG = LogFactory.getLog(PhoenixMigrationMediumTest.class);
-    protected static final String BASEDIR = "migration/dbsupport/phoenix/sql/sql";
+
+    @Override
+    protected String getBaseDir() { return "migration/dbsupport/phoenix/sql/sql"; }
 
     //public static HBaseTestingUtility testUtility = null;
 
@@ -119,7 +121,7 @@ public class PhoenixMigrationMediumTest extends MigrationTestCase {
 
     @Test(expected = FlywayException.class)
     public void validateMoreAppliedThanAvailable() throws Exception {
-        flyway.setLocations(BASEDIR);
+        flyway.setLocations(getBaseDir());
         flyway.migrate();
 
         assertEquals("2.0", flyway.info().current().getVersion().toString());
@@ -190,7 +192,7 @@ public class PhoenixMigrationMediumTest extends MigrationTestCase {
             //Expected
         }
 
-        flyway.setLocations(BASEDIR);
+        flyway.setLocations(getBaseDir());
         if (dbSupport.supportsDdlTransactions()) {
             flyway.migrate();
         } else {
@@ -216,7 +218,7 @@ public class PhoenixMigrationMediumTest extends MigrationTestCase {
         }
 
         flyway.setIgnoreFailedFutureMigration(true);
-        flyway.setLocations(BASEDIR);
+        flyway.setLocations(getBaseDir());
         flyway.migrate();
     }
 
@@ -245,15 +247,57 @@ public class PhoenixMigrationMediumTest extends MigrationTestCase {
         }
     }
 
+    @Test(expected = FlywayException.class)
+    public void nonEmptySchema() throws Exception {
+        jdbcTemplate.execute("CREATE TABLE t1 (\n" +
+                "  name VARCHAR(25) NOT NULL PRIMARY KEY\n" +
+                "  )");
+
+        flyway.setLocations(getBaseDir());
+        flyway.migrate();
+    }
+
+    @Test
+    public void nonEmptySchemaWithInit() throws Exception {
+        jdbcTemplate.execute("CREATE TABLE t1 (\n" +
+                "  name VARCHAR(25) NOT NULL PRIMARY KEY\n" +
+                "  )");
+
+        flyway.setLocations(getBaseDir());
+        flyway.setBaselineVersionAsString("0");
+        flyway.baseline();
+        flyway.migrate();
+    }
+
+    @Test
+    public void nonEmptySchemaWithInitOnMigrate() throws Exception {
+        jdbcTemplate.execute("CREATE TABLE t1 (\n" +
+                "  name VARCHAR(25) NOT NULL PRIMARY KEY\n" +
+                "  )");
+
+        flyway.setLocations(getBaseDir());
+        flyway.setBaselineVersionAsString("0");
+        flyway.setBaselineOnMigrate(true);
+        flyway.migrate();
+        MigrationInfo[] migrationInfos = flyway.info().all();
+
+        assertEquals(5, migrationInfos.length);
+
+        assertEquals(MigrationType.BASELINE, migrationInfos[0].getType());
+        assertEquals("0", migrationInfos[0].getVersion().toString());
+
+        assertEquals("2.0", flyway.info().current().getVersion().toString());
+    }
+
     @Test
     public void nonEmptySchemaWithInitOnMigrateHighVersion() throws Exception {
         jdbcTemplate.execute("CREATE TABLE t1 (\n" +
                 "  name VARCHAR(25) NOT NULL PRIMARY KEY\n" +
                 "  )");
 
-        flyway.setLocations(BASEDIR);
-        flyway.setInitOnMigrate(true);
-        flyway.setInitVersion(MigrationVersion.fromVersion("99"));
+        flyway.setLocations(getBaseDir());
+        flyway.setBaselineOnMigrate(true);
+        flyway.setBaselineVersion(MigrationVersion.fromVersion("99"));
         flyway.migrate();
         MigrationInfo[] migrationInfos = flyway.info().all();
 
