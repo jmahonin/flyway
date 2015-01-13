@@ -149,7 +149,14 @@ public abstract class MigrationTestCase {
         MigrationVersion version = flyway.info().current().getVersion();
         assertEquals("2.0", version.toString());
         assertEquals(0, flyway.migrate());
-        assertEquals(4, flyway.info().applied().length);
+
+        // We should have 5 rows if we have a schema creation marker as the first entry, 4 otherwise
+        if(flyway.info().applied().length > 0 && flyway.info().applied()[0].getType() == MigrationType.SCHEMA) {
+            assertEquals(5, flyway.info().applied().length);
+        }
+        else {
+            assertEquals(4, flyway.info().applied().length);
+        }
 
         for (MigrationInfo migrationInfo : flyway.info().applied()) {
             assertChecksum(migrationInfo);
@@ -183,7 +190,14 @@ public abstract class MigrationTestCase {
         flyway.setTable("my_custom_table");
         flyway.migrate();
         int count = jdbcTemplate.queryForInt("select count(*) from " + dbSupport.quote("my_custom_table"));
-        assertEquals(4, count);
+
+        // Same as 'migrate()', count is 5 when we have a schema creation marker
+        if(flyway.info().applied().length > 0 && flyway.info().applied()[0].getType() == MigrationType.SCHEMA) {
+            assertEquals(5, count);
+        }
+        else {
+            assertEquals(4, count);
+        }
     }
 
     /**

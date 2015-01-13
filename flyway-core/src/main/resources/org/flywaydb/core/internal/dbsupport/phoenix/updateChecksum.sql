@@ -14,9 +14,12 @@
 -- limitations under the License.
 --
 
-CREATE TABLE ${tableName} (
-  id INTEGER PRIMARY KEY
-);
 
-THIS IS NOT VALID SQL;
-THIS MIGRATION SHOULD FAIL;
+-- Update checksum for a version
+UPSERT INTO "${schema}"."${table}" (
+    ${version},
+    ${checksum}
+) VALUES (
+     '${version_val}',
+     ${checksum_val}
+);

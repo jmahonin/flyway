@@ -48,12 +48,13 @@ public class PhoenixMigrationMediumTest extends MigrationTestCase {
     @Override
     protected String getBaseDir() { return "migration/dbsupport/phoenix/sql/sql"; }
 
-    //public static HBaseTestingUtility testUtility = null;
+    protected static DataSource dataSource = null;
+    /*
+    public static HBaseTestingUtility testUtility = null;
 
-    @Override
-    protected DataSource createDataSource(Properties customProperties) throws Exception {
+    @BeforeClass
+    private void beforeClassSetUp() {
         // Startup HBase in-memory cluster
-        /*
         if(testUtility == null) {
             LOG.info("Creating in memory cluster");
             HBaseTestingUtility testUtility = new HBaseTestingUtility();
@@ -65,9 +66,14 @@ public class PhoenixMigrationMediumTest extends MigrationTestCase {
         String port = testUtility.getConfiguration().get("hbase.zookeeper.property.clientPort");
 
         String zkServer = server + ":" + port;
-        return new DriverDataSource(Thread.currentThread().getContextClassLoader(), null, "jdbc:phoenix:localhost:" + zkServer, "", "");
-        */
-        LOG.info("In createDataSource");
+        dataSource = new DriverDataSource(Thread.currentThread().getContextClassLoader(), null, "jdbc:phoenix:localhost:" + zkServer, "", "");
+    }
+    */
+
+
+    @Override
+    protected DataSource createDataSource(Properties customProperties) throws Exception {
+        //return dataSource;
         return new DriverDataSource(Thread.currentThread().getContextClassLoader(), null, "jdbc:phoenix:fennyserver", "", "");
     }
 
@@ -112,11 +118,11 @@ public class PhoenixMigrationMediumTest extends MigrationTestCase {
         assertNotEquals(commentChecksum, quoteChecksum);
 
         flyway.migrate();
-        assertEquals(quoteChecksum, flyway.info().applied()[0].getChecksum());
+        assertEquals(quoteChecksum, flyway.info().applied()[1].getChecksum());
 
         flyway.setLocations("migration/dbsupport/phoenix/sql/comment");
         flyway.repair();
-        assertEquals(commentChecksum, flyway.info().applied()[0].getChecksum());
+        assertEquals(commentChecksum, flyway.info().applied()[1].getChecksum());
     }
 
     @Test(expected = FlywayException.class)
@@ -176,7 +182,7 @@ public class PhoenixMigrationMediumTest extends MigrationTestCase {
             assertEquals("1", version.toString());
             assertEquals("Should Fail", migration.getDescription());
             assertEquals(MigrationState.FAILED, migration.getState());
-            assertEquals(1, flyway.info().applied().length);
+            assertEquals(2, flyway.info().applied().length);
         }
     }
 
@@ -319,9 +325,8 @@ public class PhoenixMigrationMediumTest extends MigrationTestCase {
 
         assertEquals("1.1", flyway.info().current().getVersion().toString());
         assertEquals("Populate table", flyway.info().current().getDescription());
-
         assertEquals("Mr. Semicolon+Linebreak;\nanother line",
-                jdbcTemplate.queryForString("select name from test_user where name like '%line'"));
+                jdbcTemplate.queryForString("SELECT * FROM test_user ORDER BY LENGTH(NAME) DESC LIMIT 1"));
     }
 
     @Test
@@ -350,7 +355,7 @@ public class PhoenixMigrationMediumTest extends MigrationTestCase {
 
     @Ignore
     public void setCurrentSchema() throws Exception {
-        //Not supported by SQLite
+        //Not supported by Phoenix
     }
 
     @Test
@@ -374,6 +379,11 @@ public class PhoenixMigrationMediumTest extends MigrationTestCase {
         flyway.setOutOfOrder(true);
         flyway.migrate();
 
-        assertEquals(org.flywaydb.core.api.MigrationState.OUT_OF_ORDER, flyway.info().all()[2].getState());
+        assertEquals(org.flywaydb.core.api.MigrationState.OUT_OF_ORDER, flyway.info().all()[3].getState());
+    }
+
+    @Test
+    public void schemaExists() throws SQLException {
+        assertFalse(dbSupport.getSchema("InVaLidScHeMa").exists());
     }
 }

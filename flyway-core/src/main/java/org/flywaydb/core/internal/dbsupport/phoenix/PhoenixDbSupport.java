@@ -71,12 +71,12 @@ public class PhoenixDbSupport extends DbSupport {
 
     @Override
     public String getBooleanTrue() {
-        return "1";
+        return "TRUE";
     }
 
     @Override
     public String getBooleanFalse() {
-        return "0";
+        return "FALSE";
     }
 
     // Phoenix uses a null schema name by default
