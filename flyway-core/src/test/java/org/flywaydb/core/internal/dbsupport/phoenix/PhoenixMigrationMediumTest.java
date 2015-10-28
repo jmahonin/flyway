@@ -171,9 +171,9 @@ public class PhoenixMigrationMediumTest extends MigrationTestCase {
 
         assertEquals(5, migrationInfos.length);
 
-        assertEquals(MigrationType.SQL, migrationInfos[0].getType());
-        assertEquals("1", migrationInfos[0].getVersion().toString());
-        assertEquals(MigrationState.BELOW_BASELINE, migrationInfos[0].getState());
+        assertEquals(MigrationType.SQL, migrationInfos[1].getType());
+        assertEquals("1", migrationInfos[1].getVersion().toString());
+        assertEquals(MigrationState.BELOW_BASELINE, migrationInfos[1].getState());
 
         MigrationInfo migrationInfo = flyway.info().current();
         assertEquals(MigrationType.BASELINE, migrationInfo.getType());
@@ -199,14 +199,14 @@ public class PhoenixMigrationMediumTest extends MigrationTestCase {
     @Test
     @Override
     public void schemaExists() throws SQLException {
-        assertFalse(dbSupport.getCurrentSchema().exists());
+        assertFalse(dbSupport.getOriginalSchema().exists());
         assertFalse(dbSupport.getSchema("InVaLidScHeMa").exists());
 
-        jdbcTemplate.execute("CREATE TABLE t1 (\n" +
+        jdbcTemplate.execute("CREATE TABLE tc1 (\n" +
                 "  name VARCHAR(25) NOT NULL PRIMARY KEY\n" +
                 "  )");
 
-        assertTrue(dbSupport.getCurrentSchema().exists());
+        assertTrue(dbSupport.getOriginalSchema().exists());
     }
 
     // Need to rename the migration prefix, otherwise unrelated classpath

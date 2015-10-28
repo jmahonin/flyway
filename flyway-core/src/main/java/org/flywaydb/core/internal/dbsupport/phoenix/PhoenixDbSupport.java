@@ -67,9 +67,13 @@ public class PhoenixDbSupport extends DbSupport {
         return result;
     }
 
+    @Override
+    protected String doGetCurrentSchemaName() throws SQLException {
+        return "";
+    }
 
     @Override
-    protected void doSetCurrentSchema(Schema schema) throws SQLException {
+    protected void doChangeCurrentSchemaTo(String schema) throws SQLException {
         LOG.info("Phoenix does not support setting the schema. Default schema NOT changed to " + schema);
     }
 
@@ -96,21 +100,6 @@ public class PhoenixDbSupport extends DbSupport {
     @Override
     public String getBooleanFalse() {
         return "FALSE";
-    }
-
-    // Phoenix uses a null schema name by default
-    @Override
-    protected String doGetCurrentSchema() throws SQLException {
-        return null;
-    }
-
-    @Override
-    public Schema getCurrentSchema() {
-        try {
-            return getSchema(doGetCurrentSchema());
-        } catch (SQLException e) {
-            throw new FlywayException("Unable to retrieve the current schema for the connection", e);
-        }
     }
 
     public SqlStatementBuilder createSqlStatementBuilder() {
